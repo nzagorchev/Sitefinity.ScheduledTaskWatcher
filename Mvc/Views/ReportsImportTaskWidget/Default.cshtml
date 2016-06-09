@@ -1,0 +1,134 @@
+@using Telerik.Sitefinity.Frontend.Mvc.Helpers;
+@using Telerik.Sitefinity.Modules.Pages;
+
+@Html.StyleSheet(Url.EmbeddedResource("Telerik.Sitefinity.Resources.Reference", "Telerik.Sitefinity.Resources.Scripts.Kendo.styles.kendo_common_min.css"))
+@Html.StyleSheet(Url.EmbeddedResource("Telerik.Sitefinity.Resources.Reference", "Telerik.Sitefinity.Resources.Scripts.Kendo.styles.kendo_default_min.css"))
+
+@Html.Script(ScriptRef.JQuery, "top", false)
+@Html.Script(ScriptRef.KendoAll, "top", false)
+
+<div class="container">
+    <div class="loading-container">
+        Loading...
+    </div>
+
+    <div class="alert progress-bar-container" style="display: none">
+        <h4 class="status-message"></h4>
+        <div class="progress-bar"></div>
+    </div>
+
+    <div class="alert alert-danger err-msg-container" style="display: none">
+        <strong>Error!</strong> Last Execution failed: <span class="err-msg"></span>
+    </div>
+
+    <div class="alert alert-success success-msg-container" style="display: none">
+        <strong>Success!</strong> Task was executed successfully
+    </div>
+
+    <div class="alert alert-info exec-container" style="display: none">
+        <div><strong>Last Execution:</strong><span class="last-execution"></span></div>
+        <div><strong>Next Execution:</strong><span class="next-execution"></span></div>
+    </div>
+
+    <div class="start-now-btn-container" style="display: none">
+        <a href="@Url.Action("StartTask")">
+            <input type="button" value="Start now" id="btn-start" class="btn btn-primary" />
+        </a>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        var progressBarElement = $('.progress-bar');
+        var progressBarContainer = $('.progress-bar-container');
+
+        var errMsgContainer = $('.err-msg-container');
+        var successMsgContainer = $('.success-msg-container');
+        var statusMsgElement = $('.status-message');
+
+        var loadingContainer = $('.loading-container');
+        var startNowBtnContainer = $('.start-now-btn-container');
+
+        var execContainer = $('.exec-container');
+        var lastExecElement = $('.last-execution');
+        var nextExecElement = $('.next-execution');
+
+        var pb = progressBarElement.kendoProgressBar({
+            type: "percent",
+            animation: {
+                duration: 600
+            }
+        }).data('kendoProgressBar');
+
+        var showErrorMsg = function (message) {
+            errMsgContainer.show();
+            errMsgContainer.find('.err-msg').text(message);
+        }
+
+        var showLastExec = function (message) {
+            execContainer.show();
+            execContainer.find('.last-execution').text(message);
+        }
+
+        var showNextExec = function (message) {
+            execContainer.show();
+            execContainer.find('.next-execution').text(message);
+        }
+
+        var getDateFromString = function (dateString) {
+            if (dateString) {
+                return new Date(parseInt(dateString.match(/\d+/g)));
+            }
+        }
+
+        var updating = setInterval(function () {
+            $.ajax({
+                url: '@Url.Action("status")',
+                method: 'GET',
+                success: function (data) {
+                    if (!data.IsRunning) {
+                        clearInterval(updating);
+                    }
+                    else if (!data.HasFailed) {
+                        progressBarContainer.show();
+                        pb.value(data.CurrentProgress);
+                        statusMsgElement.text(data.StatusMessage || '');
+                    }
+                    else {
+                        clearInterval(updating);
+                        showErrorMsg(data.StatusMessage);
+                    }
+
+                    // If task has failed, it will be running and status will be failed.
+                    if (data.CurrentProgress == 0 && !data.HasFailed && !data.IsRunning) {
+                        successMsgContainer.show();
+                        statusMsgElement.text('');
+                        progressBarContainer.hide();
+                    }
+
+                    if (!data.IsRunning && !data.HasFailed) {
+                        startNowBtnContainer.show();
+                    }
+                    else {
+                        startNowBtnContainer.hide();
+                    }
+
+                    showLastExec(getDateFromString(data.LastExecutedTime));
+                    if (!data.HasFailed) {
+                        showNextExec(getDateFromString(data.NextExecuteTime));
+                    }
+                    else {
+                        showNextExec('No Next Execution since task has failed');
+                    }
+                },
+                error: function (err) {
+                    clearInterval(updating);
+                    showErrorMsg('Request failed. Status: ' + err.statusText);
+                },
+                complete: function () {
+                    loadingContainer.hide();
+                }
+            });
+        }, 1000);
+    })
+</script>
